@@ -1970,6 +1970,7 @@ def gather_rates(Z, z1, te, dens, datacache=False, settings=False,\
   """
   Te_arr, dummy = util.make_vec(te)
   print("Starting Gather Rates Z=%i, z1=%iat %s"%(Z, z1,time.asctime()))
+#  input("STOPME")
   lvdat = atomdb.get_data(Z, z1, 'LV', datacache=datacache, \
                             settings = settings)
   nlev = len(lvdat[1].data)
@@ -2280,7 +2281,7 @@ def gather_rates(Z, z1, te, dens, datacache=False, settings=False,\
   tmp['lo']['diag'] = numpy.arange(nlev, dtype=int)
   tmp['rate']['diag'] = diagterms*-1
 
-  pickle.dump(tmp, open('tmp_gather_%i_%i_%e.pkl'%(Z,z1, te),'wb'))
+#  pickle.dump(tmp, open('tmp_gather_%i_%i_%e.pkl'%(Z,z1, te),'wb'))
 
   t1=time.time()
   up_out = numpy.append(laup, numpy.append(aiup, numpy.append(ecup, numpy.append(pcup, irup))))
@@ -5437,7 +5438,7 @@ def var_gather_rates(Z, z1, ite, Te, dens, datacache=False, settings=False,\
   tmp['lo']['diag'] = numpy.arange(nlev, dtype=int)
   tmp['rate']['diag'] = diagterms*-1
 
-  pickle.dump(tmp, open('tmp_gather_%i_%i_%i.pkl'%(Z,z1,ite),'wb'))
+#  pickle.dump(tmp, open('tmp_gather_%i_%i_%i.pkl'%(Z,z1,ite),'wb'))
 
   t1=time.time()
   up_out = numpy.append(laup, numpy.append(aiup, numpy.append(ecup, numpy.append(pcup, irup))))
@@ -5629,61 +5630,61 @@ def var_alter_rates(Z, z1, datacache=False, settings=False, do_ec=False,\
   ### aidat ###
   if do_ai:
     if not 'AI' in datacache['ERRORDAT'][Z][z1].keys():
-
-      minval = -2
-      if varparam['AI_AUTORATE'] > 0.5:
-        minval = -1/varparam['AI_AUTORATE']
-      datacache['ERRORDAT'][Z][z1]['AI'] =  stats.truncnorm.rvs(minval, \
-                                         2, \
-                                         loc=1.0, scale = varparam['AI_AUTORATE'],
-                                         size=len(aidat[1].data))
+      if aidat !=False:
+        minval = -2
+        if varparam['AI_AUTORATE'] > 0.5:
+          minval = -1/varparam['AI_AUTORATE']
+        datacache['ERRORDAT'][Z][z1]['AI'] =  stats.truncnorm.rvs(minval, \
+                                           2, \
+                                           loc=1.0, scale = varparam['AI_AUTORATE'],
+                                           size=len(aidat[1].data))
 
       # update several tasks in the level data
-      aaut_tmp = numpy.zeros(len(lvdat[1].data))
-      recalc_method = numpy.zeros(len(lvdat[1].data), dtype=int)
-      ea_tmp = aidat[1].data['AUTO_RATE'] * datacache['ERRORDAT'][Z][z1]['AI']
+        aaut_tmp = numpy.zeros(len(lvdat[1].data))
+        recalc_method = numpy.zeros(len(lvdat[1].data), dtype=int)
+        ea_tmp = aidat[1].data['AUTO_RATE'] * datacache['ERRORDAT'][Z][z1]['AI']
 
-      for ilev in range(1, len(lvdat[1].data)):
-        if 'sum' in lvdat[1].data['AAUT_REF'][ilev]:
+        for ilev in range(1, len(lvdat[1].data)):
+          if 'sum' in lvdat[1].data['AAUT_REF'][ilev]:
 
-          lev = ilev+1
+            lev = ilev+1
 
-          eaind = (aidat[1].data['level_init'] == lev)
-          if len(eaind) >0:
-            aaut_tmp[ilev] = sum(aidat[1].data['AUTO_RATE'][eaind])
-            if abs(aaut_tmp[ilev] - lvdat[1].data['AAUT_TOT'][ilev]) < 0.1* lvdat[1].data['AAUT_TOT'][ilev]:
+            eaind = (aidat[1].data['level_init'] == lev)
+            if len(eaind) >0:
+              aaut_tmp[ilev] = sum(aidat[1].data['AUTO_RATE'][eaind])
+              if abs(aaut_tmp[ilev] - lvdat[1].data['AAUT_TOT'][ilev]) < 0.1* lvdat[1].data['AAUT_TOT'][ilev]:
               # update to the new sum
-              recalc_method[ilev]=1 # re sum after updates
-              lvdat[1].data['AAUT_TOT'][ilev] = sum(ea_tmp[eaind])
-            else:
-              recalc_method[ilev]=2 # adjust sum only
-              m = -1
-              while m <=0:
-                minval = -2
-                if varparam['AI_AUTORATE'] > 0.5:
-                  minval = -1/varparam['AI_AUTORATE']
+                recalc_method[ilev]=1 # re sum after updates
+                lvdat[1].data['AAUT_TOT'][ilev] = sum(ea_tmp[eaind])
+              else:
+                recalc_method[ilev]=2 # adjust sum only
+                m = -1
+                while m <=0:
+                  minval = -2
+                  if varparam['AI_AUTORATE'] > 0.5:
+                    minval = -1/varparam['AI_AUTORATE']
 
-                m=stats.truncnorm.rvs(minval, \
-                                      2, \
-                                      loc=1.0, scale = varparam['AI_AUTORATE'],
-                                      size=1)
-              lvdat[1].data['AAUT_TOT'][ilev] *=m
+                  m=stats.truncnorm.rvs(minval, \
+                                        2, \
+                                        loc=1.0, scale = varparam['AI_AUTORATE'],
+                                        size=1)
+                lvdat[1].data['AAUT_TOT'][ilev] *=m
 
 
-        else:
+          else:
           # Pre-calculated radiative totals
-          recalc_method[ilev]=2 # adjust sum only
-          m = -1
-          while m <=0:
-            minval = -2
-            if varparam['AI_AUTORATE'] > 0.5:
-              minval = -1/varparam['AI_AUTORATE']
+            recalc_method[ilev]=2 # adjust sum only
+            m = -1
+            while m <=0:
+              minval = -2
+              if varparam['AI_AUTORATE'] > 0.5:
+                minval = -1/varparam['AI_AUTORATE']
 
-            m=stats.truncnorm.rvs(minval, \
-                                  2, \
-                                  loc=1.0, scale = varparam['AI_AUTORATE'],
-                                  size=1)
-          lvdat[1].data['AAUT_TOT'][ilev] *=m
+              m=stats.truncnorm.rvs(minval, \
+                                    2, \
+                                    loc=1.0, scale = varparam['AI_AUTORATE'],
+                                    size=1)
+            lvdat[1].data['AAUT_TOT'][ilev] *=m
 
   ### drdat ###
   if do_dr:
@@ -5700,7 +5701,9 @@ def var_alter_rates(Z, z1, datacache=False, settings=False, do_ec=False,\
                                            size=len(drdat[1].data))
         drdat[1].data['SATELINT']*=datacache['ERRORDAT'][Z][z1]['DR']
 
-      ### irdat ###
+  ### irdat ###
+  if do_ir:
+    if not 'IR' in datacache['ERRORDAT'][Z][z1].keys():
           #varparam['IR_CI']
         #varparam['IR_RR']
         #varparam['IR_DR']
@@ -6115,3 +6118,275 @@ def var_calc_ioniz_popn(levpop, Z, z1, z1_drv,it, Tlist, Ne, settings=False, \
   for i in range(len(popn)):
     print("%6i %e"%(i, popn[i]))
   return popn
+
+
+#-----------------------------------------------------------------------
+#-----------------------------------------------------------------------
+#-----------------------------------------------------------------------
+
+def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevrates,\
+                     settings=False, datacache=False, dronly=False,\
+                     rronly=False):
+  """
+  Calculate the level population of a recombined ion
+
+  Parameters
+  ----------
+  levpop: array(float)
+    Level populations, already taking into account elemental abundance
+    and ion fraction of z1_drv
+  Z: int
+  z1: int
+  z1_drv: int
+  T: electron temperature (K)
+  dens: electron density (cm^-3)
+  drlevrates: array(float)
+    Rates into each level from DR calculations
+  rrlevrates: array(float)
+    Rates into each level from RR calculations
+
+  Returns
+  -------
+  array(float)
+    Level population
+  """
+  import scipy.sparse as sparse
+  from scipy.sparse.linalg import spsolve
+
+  # levpop at this point should alread have the corrected abundance in
+  # there
+
+  lvdat = atomdb.get_data(Z,z1,'LV', settings=settings, datacache=datacache)
+  if not lvdat:
+    nlev = 1
+    levpop = numpy.zeros(1, dtype=float)
+    return levpop
+  nlev = len(lvdat[1].data)
+  Tarr, dummy = util.make_vec(T)
+
+  irdat = atomdb.get_data(Z, z1, 'IR',  settings=settings, datacache=datacache)
+
+  var_alter_rates(Z,z1,datacache=datacache, settings=settings)
+
+  if not ['IRRATES'] in datacache.keys():
+    datacache['IRRATES']={}
+  if not Z in datacache['IRRATES'].keys():
+    datacache['IRRATES']={}
+  if not z1 in datacache['IRRATES'][Z].keys():
+    datacache['IRRATES'][Z][z1]={}
+
+
+    if not 'ERRORDAT' in datacache.keys():
+      datacache['ERRORDAT']={}
+
+    if not Z in datacache['ERRORDAT'].keys():
+      datacache['ERRORDAT'][Z]={}
+
+    if not z1 in datacache['ERRORDAT'][Z].keys():
+
+      var_alter_rates(Z,z1,datacache=datacache,settings=settings,do_ir=True)
+
+
+    datacache['IRRATES'][Z][z1] =numpy.zeros([len(irdat[1].data), len(T)])
+    lvdat = atomdb.get_data(Z,z1,'LV',datacache=datacache, \
+                        settings = settings)
+    lvdatp1 = atomdb.get_data(Z,z1+1,'LV',datacache=datacache, \
+                        settings = settings)
+    ionpot = atomdb.get_ionpot(Z, z1, settings=settings, datacache=datacache)
+        
+
+    for iir in range(len(irdat[1].data)):
+  
+      datacache['IRRATES'][Z][z1][iir,:]=atomdb.get_maxwell_rate(Te=T, colldata=irdat, index=iir, lvdata=lvdat, \
+                                     lvdatap1=lvdatp1, ionpot=ionpot, \
+                                     exconly=True)* datacache['ERRORDAT'][Z][z1]['IR'][iir]
+
+
+
+
+  if nlev > const.NLEV_NOSPARSE:
+    print("using sparse solver for recomb")
+
+  # sort the levels
+    aidat = atomdb.get_data(Z,z1,'AI', settings=settings, datacache=datacache)
+    if aidat:
+      ailev = numpy.array(util.unique(aidat[1].data['level_init']))-1
+      nailev = len(ailev)
+      isbound = numpy.ones(nlev, dtype=bool)
+      isbound[ailev]=False
+    else:
+      nailev = 0
+      isbound = numpy.ones(nlev, dtype=bool)
+
+    #sortdat = sort_levels(isbound, nlev, nailev, Z, z1, settings)
+
+    recombrate = numpy.zeros(nlev, dtype=float)
+
+  # get the recomb data
+
+    for iir, ir in enumerate(irdat[1].data):
+      # check we have the right data types
+      if ir['TR_TYPE'] in ['RR','DR','XR']:
+        recrate = datacache['IRRATES'][Z][z1][iir,it]*dens*dens
+        if not (numpy.isfinite(recrate)):
+          print("iir=%i, recrate is not finite!"%(iir))
+        else:
+          recombrate[ir['level_final']-1] += recrate*levpop[ir['level_init']-1]
+
+    maxlev = numpy.where(recombrate > 0)[0]
+    if len(maxlev) == 0:  # so recombrate has all the influxes
+      return numpy.zeros(nlev)
+    maxlev=maxlev[-1]
+    matrixB = recombrate
+#    print "Sum recomb rates in level>1:", sum(matrixB[1:])
+
+
+
+    matrixA = {}
+
+    matrixA['init'], matrixA['final'], matrixA['rate']=\
+    var_gather_rates(Z, z1, it, T, dens, datacache=datacache, settings=settings,\
+                 do_la=True, do_ai=False, do_ec=False, do_pc=False,\
+                 do_ir=False)
+#    matrixA['init'] = numpy.array(ladat[1].data['upper_lev'], dtype=int)-1
+#    matrixA['final'] = numpy.array(ladat[1].data['lower_lev'], dtype=int)-1
+#    matrixA['rate'] = numpy.array(ladat[1].data['einstein_a'], dtype=float)
+
+    ### FIXME HERE
+
+    matrixB *= -1
+    nlev = len(matrixB)
+#    print "recombination rates"
+#    for i in range(len(matrixB)):
+#      print i, matrixB[i]
+
+
+      # no recombination to speak of. Return zeros
+
+    # append extras onto matrixA:
+
+#    matrixA['final'] = numpy.append(matrixA['final'],matrixA['init'])
+#    matrixA['init'] = numpy.append(matrixA['init'],matrixA['init'])
+#    matrixA['rate'] = numpy.append(matrixA['rate'],-1*matrixA['rate'])
+
+    # remove all matrix A from and to level 0
+    i = (matrixA['final']>0) & (matrixA['init']>0)
+    matrixA['final'] = matrixA['final'][i]
+    matrixA['init'] = matrixA['init'][i]
+    matrixA['rate'] = matrixA['rate'][i]
+
+    # remove all matrix A from and to high levels
+    i = (matrixA['final']<maxlev+1) & (matrixA['init']<maxlev+1)
+    matrixA['final'] = matrixA['final'][i]
+    matrixA['init'] = matrixA['init'][i]
+    matrixA['rate'] = matrixA['rate'][i]
+
+    # subtract 1 from the levels
+    matrixA['init']-= 1
+    matrixA['final']-= 1
+
+    # solve
+#    A = sparse.coo_matrix((matrixA['rate'],\
+#                           (matrixA['final'],matrixA['init'])), \
+#                           shape=(nlev-1,nlev-1)).tocsr()
+    A  = numpy.zeros([maxlev,maxlev])
+    for i in range(len(matrixA['final'])):
+      A[matrixA['final'][i], matrixA['init'][i]]+=matrixA['rate'][i]
+
+#    A = numpy.linalg.solve((matrixA['rate'],\
+#                           (matrixA['final'],matrixA['init'])), \
+#                           shape=(nlev-1,nlev-1)).tocsr()
+
+
+    levpop_this = numpy.zeros(len(matrixB))
+#    for i in numpy.where(matrixB != 0)[0]:
+#      print i, matrixB[i]
+    if sum(matrixB[1:] < 0):
+      levpop_this[1:maxlev+1] = numpy.linalg.solve(A, matrixB[1:maxlev+1])
+
+
+
+#    levpop_this = calc_cascade(recombrate, Z, z1, isbound, sortdat, T, settings, noauto=True)
+  else:
+
+    print("using regular solver for recomb")
+
+    rrrecombrate = numpy.zeros(nlev, dtype=float)
+    drrecombrate = numpy.zeros(nlev, dtype=float)
+    irdat = atomdb.get_data(Z, z1, 'IR', settings=settings, datacache=datacache)
+
+    havedrrate=False
+    haverrrate=False
+    for iir, ir in enumerate(irdat[1].data):
+#      print("iir, ir= ",iir, ir)
+      if ir['TR_TYPE'] in ['RR','XR']:
+
+        recrate = datacache['IRRATES'][Z][z1][iir,it]
+
+        rrrecombrate[ir['level_final']-1] += recrate*levpop[ir['level_init']-1]*dens
+
+        if ((ir['TR_TYPE'] in ['RR','XR']) & (ir['level_final']>1)):
+          haverrrate=True
+      if ir['TR_TYPE'] in ['DR','XD']:
+        recrate = datacache['IRRATES'][Z][z1][iir,it]
+        drrecombrate[ir['level_final']-1] += recrate*levpop[ir['level_init']-1]*dens
+        if ((ir['TR_TYPE'] in ['DR','XD']) & (ir['level_final']>1)):
+          havedrrate=True
+
+    if havedrrate:
+      tmpdrlevrates=0.0
+    else:
+      tmpdrlevrates=drlevrates
+    if haverrrate:
+      tmprrlevrates=0.0
+    else:
+      tmprrlevrates=rrlevrates
+    if isinstance(rrlevrates, numpy.ndarray):
+      sumrrlevrates = sum(rrlevrates)
+    else:
+      sumrrlevrates = 0.0
+    if isinstance(drlevrates, numpy.ndarray):
+      sumdrlevrates = sum(drlevrates)
+    else:
+      sumdrlevrates = 0.0
+
+    print("DR: sum from satellite lines: %e, sum from IR file: %e" %\
+          (sumdrlevrates, sum(drrecombrate)))
+    print("RR: sum from PI xsections: %e, sum from IR file: %e" %\
+          (sumrrlevrates, sum(rrrecombrate)))
+
+    matrixB = rrrecombrate+drrecombrate+tmpdrlevrates+tmprrlevrates
+    if dronly:
+      matrixB = drrecombrate+tmpdrlevrates
+    if rronly:
+      matrixB = rrrecombrate+tmprrlevrates
+
+
+    matrixA = numpy.zeros([nlev,nlev],dtype=float)
+
+
+    ladat = atomdb.get_data(Z, z1, 'LA', settings=settings, datacache=datacache)
+
+    matrixA_in = {}
+    matrixA_in['init'], matrixA_in['final'], matrixA_in['rate']=\
+    var_gather_rates(Z, z1, it,T, dens, datacache=datacache, settings=settings,\
+                 do_la=True, do_ai=False, do_ec=False, do_pc=False,\
+                 do_ir=False)
+
+    datacache={}
+    for i in range(len(matrixA_in['init'])):
+      matrixA[matrixA_in['final'][i], matrixA_in['init'][i]]+=matrixA_in['rate'][i]
+
+    # solve unless matrixB ==0
+    if sum(matrixB[1:])>0:
+      matrixB = -1*matrixB
+      levpop_this = calc_cascade_population(matrixA, matrixB)
+    else:
+      levpop_this = numpy.zeros(nlev)
+
+
+  print("level population for recombination into Z=%i, z1=%i, z1_drv=%i"%\
+        (Z, z1, z1_drv))
+  for i in range(len(levpop_this)):
+    print(i, levpop_this[i])
+  return levpop_this
