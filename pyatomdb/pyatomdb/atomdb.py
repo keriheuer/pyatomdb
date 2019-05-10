@@ -4241,6 +4241,8 @@ def get_data(Z, z1, ftype, datacache=False, \
   fmapfile = "$ATOMDB/filemap"
   atomdbroot="$ATOMDB"
 
+
+
   # check if data type requested in "miscellanous", i.e. a bremstrahlung
   # or abundance related file, not an ion-specific file.
 
@@ -4556,6 +4558,11 @@ def get_data(Z, z1, ftype, datacache=False, \
           d[1].columns[d[1].data.names.index('COEFF_OM')].name='EFFCOLLSTRPAR'
 
     if datacache:
+      if "testflag" in datacache.keys():
+        print("Datacache found: testflag=%s"%(datacache['testflag']))
+      else:
+        print("Datacache found: testflag NOT FOUND")
+
       if ismisc:
         if ftype.upper()=='EIGEN':
           if not Z in list(datacache['data']['misc']['EIGEN'].keys()):
@@ -6253,3 +6260,599 @@ def lorentz_levpop(version):
                            version, linelist['ID'][iline])
         f.write(s)
   f.close()
+
+
+
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def var_calc_maxwell_rates(coll_type, min_T, max_T, Tarr, \
+                       om, dE, T, Z, degl, degu, quiet=False, \
+                       levdat=False, ladat=False, \
+                       lolev=False, uplev=False, \
+                       force_extrap=False, did_extrap=False, \
+                       datacache=False, var=False):
+
+  from scipy.special import expn
+  from scipy import interpolate
+
+  xs = numpy.array([0.00, 0.25, 0.50, 0.75, 1.00])
+  xs9 = numpy.array([0.00, 0.125, 0.25, 0.375, 0.50, 0.675, 0.80, 0.925, 1.00])
+#  print Tarr, om, coll_type
+  calc_type = -1
+  chi  = dE / (const.KBOLTZ*T)
+#  print "chi",chi
+  if dE != 0.0:
+    chi_inv = (const.KBOLTZ*T) / dE
+  else:
+    chi_inv = 1e6
+
+  logT = numpy.log10(T)
+  st = 0
+
+  if ((ladat!=False) & (force_extrap==True)):
+    fill_value=numpy.nan
+  else:
+    fill_value=0.0
+
+#  if ((min(T) < min_T) | (max(T) > max_T)):
+#    if not quiet:
+#      print "WARNING: one of T is outside of valid range %e to %e K" %(min_T, max_T)
+#      print " T=", T, "coll_type = ", coll_type
+#    return False;
+
+
+#  print "Coll_type=%i"%(coll_type)
+#  zzz=raw_input("URGH")
+
+
+  if (coll_type == const.BURGESSTULLY):
+    expint_2 = expn(1,chi)*numpy.exp(chi)
+    upsilon = om[0] +\
+              om[1]*chi*expint_2 +\
+              om[2]*chi*(1-chi*expint_2) +\
+              om[3]*(chi/2.0)*(1-chi*(1-chi*expint_2)) +\
+              om[4]*expint_2
+    calc_type = E_UPSILON
+
+  elif coll_type in [const.CHIANTI_1,\
+                     const.CHIANTI_2,\
+                     const.CHIANTI_3,\
+                     const.CHIANTI_4,\
+                     const.CHIANTI_5,\
+                     const.CHIANTI_6]:
+    c = om[0]
+#    print "CHIANTI6", om, c, chi
+
+
+    if (coll_type == const.CHIANTI_1):
+      st = 1 - (numpy.log(c)/numpy.log(chi_inv+c))
+    elif (coll_type == const.CHIANTI_2):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI_3):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI_4):
+      st = 1 - (numpy.log(c)/numpy.log(chi_inv+c))
+    elif (coll_type == const.CHIANTI_5):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI_6):
+      st = chi_inv/(chi_inv+c)
+
+
+#    upsilon = interpolate.interp1d(xs, om[1:6], kind='linear', \
+#          bounds_error=False, fill_value=0.0)(st)
+
+    y2 = prep_spline_atomdb(xs, om[1:6], 5)
+    upsilon = calc_spline_atomdb(xs, om[1:6], y2, 5, st)
+
+#    upsilon = interpolate.interp1d(xs, om[1:6], kind='linear', \
+#          bounds_error=False, fill_value=0.0)(st)
+
+    if (coll_type == const.CHIANTI_1):
+      upsilon *= numpy.log(chi_inv + const.M_E)
+    elif (coll_type == const.CHIANTI_2):
+      pass
+    elif (coll_type == const.CHIANTI_3):
+      upsilon /= (chi_inv+1)
+    elif (coll_type == const.CHIANTI_4):
+      upsilon *= numpy.log(chi_inv + c)
+    elif (coll_type == const.CHIANTI_5):
+      upsilon /= chi_inv
+    elif (coll_type == const.CHIANTI_6):
+      upsilon = 10.0**upsilon
+
+    if (coll_type == const.CHIANTI_6):
+      calc_type = const.P_UPSILON
+    else:
+      calc_type = const.E_UPSILON
+
+
+
+  elif coll_type in [const.CHIANTI4_1,\
+                     const.CHIANTI4_2,\
+                     const.CHIANTI4_3,\
+                     const.CHIANTI4_4,\
+                     const.CHIANTI4_5,\
+                     const.CHIANTI4_6]:
+    c = om[1]
+
+    if (coll_type == const.CHIANTI4_1):
+      st = 1 - (numpy.log(c)/numpy.log(chi_inv+c))
+    elif (coll_type == const.CHIANTI4_2):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI4_3):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI4_4):
+      st = 1 - (numpy.log(c)/numpy.log(chi_inv+c))
+    elif (coll_type == const.CHIANTI4_5):
+      st = chi_inv/(chi_inv+c)
+    elif (coll_type == const.CHIANTI4_6):
+      st = chi_inv/(chi_inv+c)
+
+#    print xs
+#    print om[2:2+om[0]]
+#    print st
+#    print "COLL_TYPE: %i"%(coll_type)
+#    print "om[0]= ", om[0]
+    if int(om[0]) == 5:
+#      upsilon = interpolate.interp1d(xs, om[2:2+om[0]], kind='cubic',\
+#       bounds_error=False, fill_value=0.0)(st)
+      y2 = prep_spline_atomdb(xs, om[2:2+int(om[0])], 5)
+      upsilon = calc_spline_atomdb(xs, om[2:2+int(om[0])], y2, 5, st)
+    elif int(om[0])== 9:
+      upsilon = interpolate.interp1d(xs9, om[2:2+int(om[0])], kind='cubic',\
+       bounds_error=False, fill_value=0.0)(st)
+      y2 = prep_spline_atomdb(xs9, om[2:2+int(om[0])], 9)
+      stvec, isstvec = util.make_vec(st)
+      upsilon = numpy.zeros(len(stvec))
+      for ist, st in enumerate(stvec):
+        upsilon[ist] = calc_spline_atomdb(xs9, om[2:2+int(om[0])], y2, 9, st)
+      if isstvec==False:
+        upsilon = upsilon[0]
+
+    if (coll_type == const.CHIANTI4_1):
+      upsilon *= numpy.log(chi_inv + const.M_E)
+    elif (coll_type == const.CHIANTI4_2):
+      pass
+    elif (coll_type == const.CHIANTI4_3):
+      upsilon /= (chi_inv+1)
+    elif (coll_type == const.CHIANTI4_4):
+      upsilon *= numpy.log(chi_inv + c)
+    elif (coll_type == const.CHIANTI4_5):
+      upsilon /= chi_inv
+    elif (coll_type == const.CHIANTI4_6):
+      upsilon = 10.0**upsilon
+
+    if (coll_type == const.CHIANTI4_6):
+      calc_type = const.P_UPSILON
+    else:
+      calc_type = const.E_UPSILON
+
+  elif (coll_type == const.SGC_1): # S-type transitions, He-like
+    upsilon = calc_sampson_s(om, Z, T)
+    calc_type = const.E_UPSILON
+  elif (coll_type == const.SGC_2): # P-type transitions, He-like
+    upsilon = calc_sampson_p(om, Z, T)
+    calc_type = const.E_UPSILON
+  elif (coll_type == const.SGC_3): # S-type transitions, H-like
+    upsilon = calc_sampson_h(om, Z, T)
+    calc_type = const.E_UPSILON
+
+  elif (coll_type == const.KATO_NAKAZAKI_1):
+    upsilon = calc_kato(1, om, Z, T)
+    calc_type = const.E_UPSILON
+
+  elif (coll_type == const.KATO_NAKAZAKI_2):
+    upsilon = calc_kato(2, om, Z, T)
+    calc_type = const.E_UPSILON
+
+  elif (coll_type == const.PROTON_BT):
+    a = om[0]
+    b = om[1]
+    c = om[2]
+#    /* 0.8 for the np/ne ratio, */
+    if ((logT > om[3]) & ( logT < om[4])):
+      rate_coeff=0.8*(10**(a + b*(logT) + c*logT*logT) )
+
+    calc_type = const.P_RATE_COEFF
+
+
+  elif ((coll_type >= const.INTERP_E_UPSILON) & \
+      (coll_type <= const.INTERP_E_UPSILON + const.MAX_UPS)):
+
+    N_interp = coll_type - const.INTERP_E_UPSILON
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+
+    upsilon = numpy.zeros(len(T),dtype=float)
+    upsilon[:]=numpy.nan
+
+    if len(it) > 0:
+      if sum(om<0)>0:
+        om[om<0]=0.0
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]+1e-30), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)-1e-30
+      # fix the nans
+    inan = numpy.isnan(upsilon)
+    if sum(inan)>0:
+      if force_extrap:
+        upsilon[inan]=get_bt_approx(om[:N_interp], Tarr[:N_interp], T[inan], uplev, lolev, levdat,ladat)
+        did_extrap=True
+      else:
+        upsilon[inan]= 0.0
+
+
+    calc_type = const.E_UPSILON
+
+  elif ((coll_type >= const.INTERP_I_UPSILON) & \
+      (coll_type <= const.INTERP_I_UPSILON + const.MAX_UPS)):
+
+    N_interp = coll_type - const.INTERP_I_UPSILON
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      if sum(om<0)>0:
+        om[om<0]=0.0
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]+1e-30), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)-1e-30
+    calc_type = const.EI_UPSILON
+
+
+  elif ((coll_type >= const.INTERP_E_UPS_OPEN) & \
+      (coll_type <= const.INTERP_E_UPS_OPEN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_UPS_OPEN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    upsilon[:]=numpy.nan
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+
+    # fix the nans
+    inan = numpy.isnan(upsilon)
+    if sum(inan)>0:
+      if force_extrap:
+        upsilon[inan]=get_bt_approx(om[:N_interp], Tarr[:N_interp], T[inan], uplev, lolev, levdat,ladat)
+        did_extrap=True
+      else:
+        upsilon[inan]= 0.0
+    calc_type = const.E_UPSILON
+
+  elif ((coll_type >= const.INTERP_E_UPS_INC_MIN) & \
+      (coll_type <= const.INTERP_E_UPS_INC_MIN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_UPS_INC_MIN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    upsilon[:]=numpy.nan
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+      # fix the nans
+    inan = numpy.isnan(upsilon)
+    if sum(inan)>0:
+      # do the BT extrappolations
+      if force_extrap:
+        upsilon[inan]=get_bt_approx(om[:N_interp], Tarr[:N_interp], T[inan], uplev, lolev, levdat,ladat)
+        did_extrap=True
+      else:
+        upsilon[inan]= 0.0
+    calc_type = const.E_UPSILON
+
+  elif ((coll_type >= const.INTERP_E_UPS_INC_MAX) & \
+      (coll_type <= const.INTERP_E_UPS_INC_MAX + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_UPS_INC_MAX
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    upsilon[:]=numpy.nan
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+      # fix the nans
+    inan = numpy.isnan(upsilon)
+    if sum(inan)>0:
+      # do the BT extrappolations
+      if force_extrap:
+        upsilon[inan]=get_bt_approx(om[:N_interp], Tarr[:N_interp], T[inan], uplev, lolev, levdat,ladat)
+        did_extrap=True
+      else:
+        upsilon[inan]= 0.0
+    calc_type = const.E_UPSILON
+
+  elif ((coll_type >= const.INTERP_P_UPSILON) & \
+      (coll_type <= const.INTERP_P_UPSILON + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_UPSILON
+    upsilon = numpy.zeros(len(T),dtype=float)
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+    calc_type = const.P_UPSILON
+
+  elif ((coll_type >= const.INTERP_P_UPS_OPEN) & \
+      (coll_type <= const.INTERP_P_UPS_OPEN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_UPS_OPEN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+    calc_type = const.P_UPSILON
+
+  elif ((coll_type >= const.INTERP_P_UPS_INC_MIN) & \
+      (coll_type <= const.INTERP_P_UPS_INC_MIN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_UPS_INC_MIN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+    calc_type = const.P_UPSILON
+
+  elif ((coll_type >= const.INTERP_P_UPS_INC_MAX) & \
+      (coll_type <= const.INTERP_P_UPS_INC_MAX + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_UPS_INC_MAX
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    upsilon = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      upsilon[it] = numpy.exp(tmp)
+    calc_type = const.P_UPSILON
+
+  elif ((coll_type >= const.INTERP_E_RATE_COEFF) & \
+      (coll_type <= const.INTERP_E_RATE_COEFF + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_RATE_COEFF
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.E_RATE_COEFF
+
+    rate_coeff = interpol_huntd(N_interp, Tarr, om, T)
+    calc_type = const.E_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_E_RATE_OPEN) & \
+      (coll_type <= const.INTERP_E_RATE_OPEN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_RATE_OPEN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.E_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_E_RATE_INC_MIN) & \
+      (coll_type <= const.INTERP_E_RATE_INC_MIN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_RATE_INC_MIN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.E_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_E_RATE_INC_MAX) & \
+      (coll_type <= const.INTERP_E_RATE_INC_MAX + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_E_RATE_INC_MAX
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = E_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_P_RATE_COEFF) & \
+      (coll_type <= const.INTERP_P_RATE_COEFF + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_RATE_COEFF
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmpfn = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]+1e-30), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)
+
+      # this is for values outside the range
+      for iit in it:
+        if T[iit] in Tarr[:N_interp]:
+          rate_coeff[iit]=om[Tarr[:N_interp]==T[iit]]
+        else:
+          rate_coeff[iit]=numpy.exp(tmpfn(numpy.log(T[iit])))-1e-30
+
+    calc_type = const.P_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_P_RATE_OPEN) & \
+      (coll_type <= const.INTERP_P_RATE_OPEN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_RATE_OPEN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.P_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_P_RATE_INC_MIN) & \
+      (coll_type <= const.INTERP_P_RATE_INC_MIN + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_RATE_INC_MIN
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.P_RATE_COEFF
+
+  elif ((coll_type >= const.INTERP_P_RATE_INC_MAX) & \
+      (coll_type <= const.INTERP_P_RATE_INC_MAX + const.MAX_UPS)):
+    N_interp = coll_type - const.INTERP_P_RATE_INC_MAX
+    it = numpy.where((T>=min(Tarr[:N_interp])) &\
+                     (T<=max(Tarr[:N_interp])))[0]
+    rate_coeff = numpy.zeros(len(T),dtype=float)
+    if (T > min_T) :
+      rate_coeff = interpol_huntd(N_interp, Tarr, om, T)
+    if len(it) > 0:
+      tmp = interpolate.interp1d(numpy.log(Tarr[:N_interp]), \
+                                 numpy.log(om[:N_interp]), \
+                                 bounds_error=False, \
+                                 fill_value=fill_value)(numpy.log(T[it]))
+
+      rate_coeff[it] = numpy.exp(tmp)
+    calc_type = const.P_RATE_COEFF
+
+  if (calc_type == -1):
+    print("ERROR: undefined collision type %i" %(coll_type))
+    return False
+
+  #print "upsilon:", upsilon
+#------------------------------------
+
+  if (calc_type == const.E_UPSILON):
+
+    #negative upsilon is unphysical
+    upsilon[upsilon < 0] = 0.0
+
+    if var != False:
+      varups = numpy.zeros(len(chi), dtype=float)
+      varups[chi<0.01] = var
+      varups[chi>100] = (var-1)*0.1+1
+      imid = numpy.where((0.01<=chi) &(chi<=100))[0]
+      if len(imid)>0:
+
+        varups[imid] = numpy.interp(numpy.log(chi[imid]),\
+                                                numpy.log(numpy.array([0.01,100])),\
+                                                numpy.array([var, (var-1)*0.1+1]))
+#      print("varups:", varups, "chi", chi)
+      upsilon *= varups
+
+
+    exc_rate = numpy.zeros(len(chi), dtype=float)
+    dex_rate = numpy.zeros(len(chi), dtype=float)
+#    print numpy.exp(-chi)
+#    print numpy.sqrt(T)
+    for i in range(len(chi)):
+      if (chi[i] < const.MAX_CHI):
+        exc_rate[i] = const.UPSILON_COLL_COEFF * upsilon[i] * \
+                   numpy.exp(-chi[i]) / (numpy.sqrt(T[i])*degl)
+        dex_rate[i] = const.UPSILON_COLL_COEFF * upsilon[i] / (numpy.sqrt(T[i])*degu)
+
+
+  if (calc_type == const.EI_UPSILON):
+
+    #negative upsilon is unphysical
+    upsilon[upsilon < 0] = 0.0
+
+    exc_rate = numpy.zeros(len(chi), dtype=float)
+    dex_rate = numpy.zeros(len(chi), dtype=float)
+#    print numpy.exp(-chi)
+#    print numpy.sqrt(T)
+    # this is the same as the electron-impact version, but with extra factor of pi
+    for i in range(len(chi)):
+      if (chi[i] < const.MAX_CHI):
+        exc_rate[i] = const.UPSILON_COLL_COEFF * upsilon[i] * \
+                   numpy.exp(-chi[i]) / (numpy.pi* numpy.sqrt(T[i])*degl)
+
+
+  if (calc_type == const.P_UPSILON):
+    upsilon[upsilon < 0] = 0.0
+
+    exc_rate = numpy.zeros(len(upsilon), dtype=float)
+    dex_rate = numpy.zeros(len(upsilon), dtype=float)
+    print("Can't calculate collision strength for protons.")
+
+
+  if ((calc_type == const.P_RATE_COEFF)|(calc_type == const.E_RATE_COEFF)):
+    #rate_coeff=numpy.zeros(len(chi), dtype=float)
+    rate_coeff[rate_coeff < 0] = 0.0
+    exc_rate = rate_coeff
+    dex_rate = rate_coeff*numpy.exp(chi)*(degl*1.0/degu)
+#  print "exc_rate:", exc_rate
+
+#  zzz=raw_input()
+
+  if sum(numpy.isnan(numpy.asarray(exc_rate)))>0:
+    print("ERROR: calculated excitation rate an NaN")
+    print(coll_type, min_T, max_T, Tarr, om, dE, T, Z, degl, degu)
+  if sum(numpy.isnan(numpy.asarray(dex_rate)))>0:
+    print("ERROR: calculated excitation rate an NaN")
+    print(coll_type, min_T, max_T, Tarr, om, dE, T, Z, degl, degu)
+
+  if force_extrap:
+    return exc_rate, dex_rate, did_extrap
+
+  else:
+    return exc_rate, dex_rate
