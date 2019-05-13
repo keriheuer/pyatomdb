@@ -5002,10 +5002,17 @@ def var_run_apec_ion(settings, te, dens, Z, z1, ionfrac, abund):
       if sum(tmpdrlevrates) + sum(tmprrlevrates)>0:
         print("Start calc_recomb_popn at %s"%(time.asctime()))
 
-        levpop_recomb=calc_recomb_popn(lev_pop, Z, z1,\
-                                           z1_drv, Te, dens, drlevrates,\
+
+        levpop_recomb=var_calc_recomb_popn(lev_pop, Z, z1,\
+                                           z1_drv, ite, te, dens, drlevrates,\
                                            rrlevrates,\
-                                           datacache=datacache, settings=settings)
+                                           datacache=datacache, settings=settings,\
+                                           force_extrap=True)
+
+        print('levpop_recomb?')
+        for i in range(len(levpop_recomb)):
+          print(i, levpop_recomb[i])
+
         print("Finish calc_recomb_popn at %s"%(time.asctime()))
 
       #zzz=raw_input()
@@ -5056,7 +5063,8 @@ def var_run_apec_ion(settings, te, dens, Z, z1, ionfrac, abund):
           linelist_ion = numpy.append(linelist_ion, linelist_ion_tmp)
           continuum['twophot']+=tmptwophot
 
-          lev_pop_parent = lev_pop
+        lev_pop_parent = lev_pop
+
         z1+=1
 
   # generate return data
@@ -5306,19 +5314,20 @@ def var_gather_rates(Z, z1, ite, Te, dens, datacache=False, settings=False,\
                                      pcdat[1].data['max_temp'][i],\
                                      pcdat[1].data['temperature'][i],\
                                      pcdat[1].data['effcollstrpar'][i],\
-                                     deltaearr[i]/1e3, Te_arr, Z, \
+                                     deltaearr[i]/1e3, Te, Z, \
                                      deglarr[i], deguarr[i],\
                                      force_extrap=True)
 
 
         pcup[i] = pcdat[1].data['Lower_Lev'][i] - 1
         pclo[i] = pcdat[1].data['Upper_Lev'][i] - 1
-        pcrate[i] = exc*dens
 
-        if dex > 0:
+        pcrate[i] = exc[ite]*dens
+
+        if dex[ite] > 0:
           dpcup[idex] = pcdat[1].data['Upper_Lev'][i] - 1
           dpclo[idex] = pcdat[1].data['Lower_Lev'][i] - 1
-          dpcrate[idex] = dex*dens
+          dpcrate[idex] = dex[ite]*dens
           idex += 1
 
     # now merge the de-excitation data
@@ -5899,6 +5908,7 @@ def var_calc_ioniz_popn(levpop, Z, z1, z1_drv,it, Tlist, Ne, settings=False, \
   from scipy.sparse.linalg import spsolve
 
   print("Starting calc_ioniz_popn at %s"%(time.asctime()))
+  print("Z=%i, z1=%i, z1_drv=%i, it=%i, Tlist[it]=%e"%(Z,z1,z1_drv,it,Tlist[it]))
   lvdat = atomdb.get_data(Z,z1,'LV', settings=settings, datacache=datacache)
   T = Tlist[it]
   # if we have no lv data, ignore.
@@ -6126,7 +6136,7 @@ def var_calc_ioniz_popn(levpop, Z, z1, z1_drv,it, Tlist, Ne, settings=False, \
 
 def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevrates,\
                      settings=False, datacache=False, dronly=False,\
-                     rronly=False):
+                     rronly=False, force_extrap=False):
   """
   Calculate the level population of a recombined ion
 
@@ -6168,7 +6178,7 @@ def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevra
 
   var_alter_rates(Z,z1,datacache=datacache, settings=settings)
 
-  if not ['IRRATES'] in datacache.keys():
+  if not 'IRRATES' in datacache.keys():
     datacache['IRRATES']={}
   if not Z in datacache['IRRATES'].keys():
     datacache['IRRATES']={}
@@ -6176,15 +6186,15 @@ def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevra
     datacache['IRRATES'][Z][z1]={}
 
 
-    if not 'ERRORDAT' in datacache.keys():
-      datacache['ERRORDAT']={}
+#    if not 'ERRORDAT' in datacache.keys():
+#      datacache['ERRORDAT']={}
 
-    if not Z in datacache['ERRORDAT'].keys():
-      datacache['ERRORDAT'][Z]={}
+#    if not Z in datacache['ERRORDAT'].keys():
+#      datacache['ERRORDAT'][Z]={}
 
-    if not z1 in datacache['ERRORDAT'][Z].keys():
+#    if not z1 in datacache['ERRORDAT'][Z].keys():
 
-      var_alter_rates(Z,z1,datacache=datacache,settings=settings,do_ir=True)
+#      var_alter_rates(Z,z1,datacache=datacache,settings=settings,do_ir=True)
 
 
     datacache['IRRATES'][Z][z1] =numpy.zeros([len(irdat[1].data), len(T)])
@@ -6193,14 +6203,12 @@ def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevra
     lvdatp1 = atomdb.get_data(Z,z1+1,'LV',datacache=datacache, \
                         settings = settings)
     ionpot = atomdb.get_ionpot(Z, z1, settings=settings, datacache=datacache)
-        
 
     for iir in range(len(irdat[1].data)):
-  
+
       datacache['IRRATES'][Z][z1][iir,:]=atomdb.get_maxwell_rate(Te=T, colldata=irdat, index=iir, lvdata=lvdat, \
                                      lvdatap1=lvdatp1, ionpot=ionpot, \
-                                     exconly=True)* datacache['ERRORDAT'][Z][z1]['IR'][iir]
-
+                                     exconly=True, force_extrap=force_extrap)* datacache['ERRORDAT'][Z][z1]['IR'][iir]
 
 
 
@@ -6318,7 +6326,6 @@ def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevra
     havedrrate=False
     haverrrate=False
     for iir, ir in enumerate(irdat[1].data):
-#      print("iir, ir= ",iir, ir)
       if ir['TR_TYPE'] in ['RR','XR']:
 
         recrate = datacache['IRRATES'][Z][z1][iir,it]

@@ -5157,25 +5157,30 @@ def prep_spline_atomdb(x, y, n):
 
 def calc_spline_atomdb(xa, ya, y2a, n, x):
 
+  xxx, is_vec = util.make_vec(x)
+  result = numpy.zeros(len(xxx))
 
-  klo=0
-  khi=n-1
+  for ix, xx in enumerate(xxx):
 
-  while (khi-klo > 1):
-    k=(khi+klo) >> 1
-    if (xa[k] > x):
-      khi=k
-    else:
-      klo=k
+    klo=0
+    khi=n-1
 
-  h=xa[khi]-xa[klo]
-  if (h == 0.0):
-    print("calc_spline: Bad x array input\n")
+    while (khi-klo > 1):
+      k=(khi+klo) >> 1
+
+      if (xa[k] > xx):
+        khi=k
+      else:
+        klo=k
+
+    h=xa[khi]-xa[klo]
+    if (h == 0.0):
+      print("calc_spline: Bad x array input\n")
 
 
-  a=(xa[khi]-x)/h
-  b=(x-xa[klo])/h
-  result=a*ya[klo]+b*ya[khi]+((a*a*a-a)*y2a[klo]+(b*b*b-b)*y2a[khi])*(h*h)/6.0
+    a=(xa[khi]-xx)/h
+    b=(xx-xa[klo])/h
+    result[ix]=a*ya[klo]+b*ya[khi]+((a*a*a-a)*y2a[klo]+(b*b*b-b)*y2a[khi])*(h*h)/6.0
 
   return result
 
@@ -6399,15 +6404,18 @@ def var_calc_maxwell_rates(coll_type, min_T, max_T, Tarr, \
 #      upsilon = interpolate.interp1d(xs, om[2:2+om[0]], kind='cubic',\
 #       bounds_error=False, fill_value=0.0)(st)
       y2 = prep_spline_atomdb(xs, om[2:2+int(om[0])], 5)
+
       upsilon = calc_spline_atomdb(xs, om[2:2+int(om[0])], y2, 5, st)
     elif int(om[0])== 9:
-      upsilon = interpolate.interp1d(xs9, om[2:2+int(om[0])], kind='cubic',\
-       bounds_error=False, fill_value=0.0)(st)
+#      upsilon = interpolate.interp1d(xs9, om[2:2+int(om[0])], kind='cubic',\
+#       bounds_error=False, fill_value=0.0)(st)
       y2 = prep_spline_atomdb(xs9, om[2:2+int(om[0])], 9)
       stvec, isstvec = util.make_vec(st)
       upsilon = numpy.zeros(len(stvec))
-      for ist, st in enumerate(stvec):
-        upsilon[ist] = calc_spline_atomdb(xs9, om[2:2+int(om[0])], y2, 9, st)
+      upsilon = calc_spline_atomdb(xs9, om[2:2+int(om[0])], y2, 9, stvec)
+#      for ist, st in enumerate(stvec):
+#        upsilon[ist] = calc_spline_atomdb(xs9, om[2:2+int(om[0])], y2, 9, st)
+#      print("upsilon", upsilon, "y2", y2, "stvec", stvec)
       if isstvec==False:
         upsilon = upsilon[0]
 
