@@ -5479,16 +5479,17 @@ def var_alter_rates(Z, z1, datacache=False, settings=False, do_ec=False,\
 
   # things to change here: nothing.
   # set up the transition types and pairings
-  lvlabels = numpy.loadtxt('vardata/%i_%i_lv.dat'%(Z,z1), \
-             dtype=numpy.dtype({'names':['level','levelset'],\
-                                'formats':[int, int]}))
-  lalabels = numpy.loadtxt('vardata/%i_%i_la.dat'%(Z,z1), \
-             dtype=numpy.dtype({'names':['trnid','lo','up','transitionset','transitiontype'],\
-                                'formats':[int, int, int, int, int]}))
+  if lvdat != False:
+    lvlabels = numpy.loadtxt('vardata/%i_%i_lv.dat'%(Z,z1), \
+               dtype=numpy.dtype({'names':['level','levelset'],\
+                                  'formats':[int, int]}))
+    lalabels = numpy.loadtxt('vardata/%i_%i_la.dat'%(Z,z1), \
+               dtype=numpy.dtype({'names':['trnid','lo','up','transitionset','transitiontype'],\
+                                  'formats':[int, int, int, int, int]}))
 
-  eclabels = numpy.loadtxt('vardata/%i_%i_ec.dat'%(Z,z1), \
-             dtype=numpy.dtype({'names':['trnid','lo','up','transitionset','transitiontype'],\
-                                'formats':[int, int, int, int, int]}))
+    eclabels = numpy.loadtxt('vardata/%i_%i_ec.dat'%(Z,z1), \
+               dtype=numpy.dtype({'names':['trnid','lo','up','transitionset','transitiontype'],\
+                                  'formats':[int, int, int, int, int]}))
 
   # load the variational parameters
   varparam ={}
@@ -5543,214 +5544,215 @@ def var_alter_rates(Z, z1, datacache=False, settings=False, do_ec=False,\
   # set up the errors for everything...
 
   ### ecdat ###
-  if do_ec:
-    if not 'EC' in datacache['ERRORDAT'][Z][z1].keys():
-      datacache['ERRORDAT'][Z][z1]['EC'] = numpy.zeros(len(ecdat[1].data), dtype=float)
+  if lvdat != False:
+    if do_ec:
+      if not 'EC' in datacache['ERRORDAT'][Z][z1].keys():
+        datacache['ERRORDAT'][Z][z1]['EC'] = numpy.zeros(len(ecdat[1].data), dtype=float)
 
-  # now generate the relevant errors
+    # now generate the relevant errors
 
-      transitionlist = util.unique(eclabels['transitionset'])
-      transitionvals = stats.truncnorm.rvs(min([-1/varparam['EC_UPS_E1'], -2]),\
-                                         2, \
-                                         loc=1.0, scale = varparam['EC_UPS_E1'],
-                                         size=len(transitionlist))
-
-      for i, t in enumerate(transitionlist):
-        datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitionset']==t] = transitionvals[i]
-
-      # now scale up the non-fixed values
-      datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitiontype']!=1] *= 1-( (1-datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitiontype']!=1])*
-            varparam['EC_UPS_OTHER']/varparam['EC_UPS_E1'])
-
-
-      datacache['ERRORDAT'][Z][z1]['EC'][datacache['ERRORDAT'][Z][z1]['EC']<0] = 0.0
-
-
-  ### ladat ###
-  if do_la:
-    if not 'LA' in datacache['ERRORDAT'][Z][z1].keys():
-
-      datacache['ERRORDAT'][Z][z1]['LA'] = numpy.zeros(len(ladat[1].data), dtype=float)
-
-      # now generate the relevant errors
-      transitionlist = util.unique(lalabels['transitionset'])
-      transitionvals = stats.truncnorm.rvs(min([-1/varparam['LA_EINA_E1'], -2]), \
-                                         2, \
-                                         loc=1.0, scale = varparam['LA_EINA_E1'],
-                                         size=len(transitionlist))
-
-      for i, t in enumerate(transitionlist):
-        datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitionset']==t] = transitionvals[i]
-
-      # now scale up the non-fixed values
-      datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitiontype']!=1] = \
-            1-( (1-datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitiontype']!=1])*
-            varparam['LA_EINA_OTHER']/varparam['LA_EINA_E1'])
-
-      datacache['ERRORDAT'][Z][z1]['LA'][datacache['ERRORDAT'][Z][z1]['LA'] < 0] = 0.0
-      # update several tasks in the level data
-      arad_tmp = numpy.zeros(len(lvdat[1].data))
-      recalc_method = numpy.zeros(len(lvdat[1].data), dtype=int)
-
-      ea_tmp = ladat[1].data['EINSTEIN_A'] * datacache['ERRORDAT'][Z][z1]['LA']
-
-      for ilev in range(1, len(lvdat[1].data)):
-        if 'sum' in lvdat[1].data['ARAD_REF'][ilev]:
-          # From summed data radiative totals
-          lev = ilev+1
-
-          eaind = (ladat[1].data['upper_lev'] == lev)
-          if len(eaind) >0:
-            arad_tmp[ilev] = sum(ladat[1].data['EINSTEIN_A'][eaind])
-            if abs(arad_tmp[ilev] - lvdat[1].data['ARAD_TOT'][ilev]) < 0.1* lvdat[1].data['ARAD_TOT'][ilev]:
-              # update to the new sum
-              recalc_method[ilev]=1 # re sum after updates
-              lvdat[1].data['ARAD_TOT'][ilev] = sum(ea_tmp[eaind])
-            else:
-              recalc_method[ilev]=2 # adjust sum only
-              m = -1
-              while m <=0:
-                minval = -2
-                if varparam['LA_EINA_E1'] >0.5:
-                  minval = -1/varparam['LA_EINA_E1']
-                m=stats.truncnorm.rvs(minval, \
-                                      2, \
-                                      loc=1.0, scale = varparam['LA_EINA_E1'],
-                                      size=1)
-              lvdat[1].data['ARAD_TOT'][ilev] *=m
-
-
-        else:
-          # Pre-calculated radiative totals
-          recalc_method[ilev]=2 # adjust sum only
-          m = -1
-          while m <=0:
-            minval = -2
-            if varparam['LA_EINA_E1'] >0.5:
-              minval = -1/varparam['LA_EINA_E1']
-
-            m=stats.truncnorm.rvs(minval, \
-                                  2, \
-                                  loc=1.0, scale = varparam['LA_EINA_E1'],
-                                  size=1)
-          lvdat[1].data['ARAD_TOT'][ilev] *=m
-
-      ladat[1].data['EINSTEIN_A'] =ea_tmp
-  ### aidat ###
-  if do_ai:
-    if not 'AI' in datacache['ERRORDAT'][Z][z1].keys():
-      if aidat !=False:
-        minval = -2
-        if varparam['AI_AUTORATE'] > 0.5:
-          minval = -1/varparam['AI_AUTORATE']
-        datacache['ERRORDAT'][Z][z1]['AI'] =  stats.truncnorm.rvs(minval, \
+        transitionlist = util.unique(eclabels['transitionset'])
+        transitionvals = stats.truncnorm.rvs(min([-1/varparam['EC_UPS_E1'], -2]),\
                                            2, \
-                                           loc=1.0, scale = varparam['AI_AUTORATE'],
-                                           size=len(aidat[1].data))
+                                           loc=1.0, scale = varparam['EC_UPS_E1'],
+                                           size=len(transitionlist))
 
-      # update several tasks in the level data
-        aaut_tmp = numpy.zeros(len(lvdat[1].data))
+        for i, t in enumerate(transitionlist):
+          datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitionset']==t] = transitionvals[i]
+
+        # now scale up the non-fixed values
+        datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitiontype']!=1] *= 1-( (1-datacache['ERRORDAT'][Z][z1]['EC'][eclabels['transitiontype']!=1])*
+              varparam['EC_UPS_OTHER']/varparam['EC_UPS_E1'])
+
+
+        datacache['ERRORDAT'][Z][z1]['EC'][datacache['ERRORDAT'][Z][z1]['EC']<0] = 0.0
+
+
+    ### ladat ###
+    if do_la:
+      if not 'LA' in datacache['ERRORDAT'][Z][z1].keys():
+
+        datacache['ERRORDAT'][Z][z1]['LA'] = numpy.zeros(len(ladat[1].data), dtype=float)
+
+        # now generate the relevant errors
+        transitionlist = util.unique(lalabels['transitionset'])
+        transitionvals = stats.truncnorm.rvs(min([-1/varparam['LA_EINA_E1'], -2]), \
+                                           2, \
+                                           loc=1.0, scale = varparam['LA_EINA_E1'],
+                                           size=len(transitionlist))
+
+        for i, t in enumerate(transitionlist):
+          datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitionset']==t] = transitionvals[i]
+
+        # now scale up the non-fixed values
+        datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitiontype']!=1] = \
+              1-( (1-datacache['ERRORDAT'][Z][z1]['LA'][lalabels['transitiontype']!=1])*
+              varparam['LA_EINA_OTHER']/varparam['LA_EINA_E1'])
+
+        datacache['ERRORDAT'][Z][z1]['LA'][datacache['ERRORDAT'][Z][z1]['LA'] < 0] = 0.0
+        # update several tasks in the level data
+        arad_tmp = numpy.zeros(len(lvdat[1].data))
         recalc_method = numpy.zeros(len(lvdat[1].data), dtype=int)
-        ea_tmp = aidat[1].data['AUTO_RATE'] * datacache['ERRORDAT'][Z][z1]['AI']
+
+        ea_tmp = ladat[1].data['EINSTEIN_A'] * datacache['ERRORDAT'][Z][z1]['LA']
 
         for ilev in range(1, len(lvdat[1].data)):
-          if 'sum' in lvdat[1].data['AAUT_REF'][ilev]:
-
+          if 'sum' in lvdat[1].data['ARAD_REF'][ilev]:
+            # From summed data radiative totals
             lev = ilev+1
 
-            eaind = (aidat[1].data['level_init'] == lev)
+            eaind = (ladat[1].data['upper_lev'] == lev)
             if len(eaind) >0:
-              aaut_tmp[ilev] = sum(aidat[1].data['AUTO_RATE'][eaind])
-              if abs(aaut_tmp[ilev] - lvdat[1].data['AAUT_TOT'][ilev]) < 0.1* lvdat[1].data['AAUT_TOT'][ilev]:
-              # update to the new sum
+              arad_tmp[ilev] = sum(ladat[1].data['EINSTEIN_A'][eaind])
+              if abs(arad_tmp[ilev] - lvdat[1].data['ARAD_TOT'][ilev]) < 0.1* lvdat[1].data['ARAD_TOT'][ilev]:
+                # update to the new sum
                 recalc_method[ilev]=1 # re sum after updates
-                lvdat[1].data['AAUT_TOT'][ilev] = sum(ea_tmp[eaind])
+                lvdat[1].data['ARAD_TOT'][ilev] = sum(ea_tmp[eaind])
               else:
                 recalc_method[ilev]=2 # adjust sum only
                 m = -1
                 while m <=0:
                   minval = -2
-                  if varparam['AI_AUTORATE'] > 0.5:
-                    minval = -1/varparam['AI_AUTORATE']
-
+                  if varparam['LA_EINA_E1'] >0.5:
+                    minval = -1/varparam['LA_EINA_E1']
                   m=stats.truncnorm.rvs(minval, \
                                         2, \
-                                        loc=1.0, scale = varparam['AI_AUTORATE'],
+                                        loc=1.0, scale = varparam['LA_EINA_E1'],
                                         size=1)
-                lvdat[1].data['AAUT_TOT'][ilev] *=m
+                lvdat[1].data['ARAD_TOT'][ilev] *=m
 
 
           else:
-          # Pre-calculated radiative totals
+            # Pre-calculated radiative totals
             recalc_method[ilev]=2 # adjust sum only
             m = -1
             while m <=0:
               minval = -2
-              if varparam['AI_AUTORATE'] > 0.5:
-                minval = -1/varparam['AI_AUTORATE']
+              if varparam['LA_EINA_E1'] >0.5:
+                minval = -1/varparam['LA_EINA_E1']
 
               m=stats.truncnorm.rvs(minval, \
                                     2, \
-                                    loc=1.0, scale = varparam['AI_AUTORATE'],
+                                    loc=1.0, scale = varparam['LA_EINA_E1'],
                                     size=1)
-            lvdat[1].data['AAUT_TOT'][ilev] *=m
+            lvdat[1].data['ARAD_TOT'][ilev] *=m
 
-  ### drdat ###
-  if do_dr:
-    if not 'DR' in datacache['ERRORDAT'][Z][z1].keys():
+        ladat[1].data['EINSTEIN_A'] =ea_tmp
+    ### aidat ###
+    if do_ai:
+      if not 'AI' in datacache['ERRORDAT'][Z][z1].keys():
+        if aidat !=False:
+          minval = -2
+          if varparam['AI_AUTORATE'] > 0.5:
+            minval = -1/varparam['AI_AUTORATE']
+          datacache['ERRORDAT'][Z][z1]['AI'] =  stats.truncnorm.rvs(minval, \
+                                             2, \
+                                             loc=1.0, scale = varparam['AI_AUTORATE'],
+                                             size=len(aidat[1].data))
 
-      if drdat != False:
-        minval = -2
-        if varparam['DR_SATELINT'] > 0.5:
-          minval = -1/varparam['DR_SATELINT']
+        # update several tasks in the level data
+          aaut_tmp = numpy.zeros(len(lvdat[1].data))
+          recalc_method = numpy.zeros(len(lvdat[1].data), dtype=int)
+          ea_tmp = aidat[1].data['AUTO_RATE'] * datacache['ERRORDAT'][Z][z1]['AI']
 
-        datacache['ERRORDAT'][Z][z1]['DR'] =  stats.truncnorm.rvs(minval, \
+          for ilev in range(1, len(lvdat[1].data)):
+            if 'sum' in lvdat[1].data['AAUT_REF'][ilev]:
+
+              lev = ilev+1
+
+              eaind = (aidat[1].data['level_init'] == lev)
+              if len(eaind) >0:
+                aaut_tmp[ilev] = sum(aidat[1].data['AUTO_RATE'][eaind])
+                if abs(aaut_tmp[ilev] - lvdat[1].data['AAUT_TOT'][ilev]) < 0.1* lvdat[1].data['AAUT_TOT'][ilev]:
+                # update to the new sum
+                  recalc_method[ilev]=1 # re sum after updates
+                  lvdat[1].data['AAUT_TOT'][ilev] = sum(ea_tmp[eaind])
+                else:
+                  recalc_method[ilev]=2 # adjust sum only
+                  m = -1
+                  while m <=0:
+                    minval = -2
+                    if varparam['AI_AUTORATE'] > 0.5:
+                      minval = -1/varparam['AI_AUTORATE']
+
+                    m=stats.truncnorm.rvs(minval, \
+                                          2, \
+                                          loc=1.0, scale = varparam['AI_AUTORATE'],
+                                          size=1)
+                  lvdat[1].data['AAUT_TOT'][ilev] *=m
+
+
+            else:
+            # Pre-calculated radiative totals
+              recalc_method[ilev]=2 # adjust sum only
+              m = -1
+              while m <=0:
+                minval = -2
+                if varparam['AI_AUTORATE'] > 0.5:
+                  minval = -1/varparam['AI_AUTORATE']
+
+                m=stats.truncnorm.rvs(minval, \
+                                      2, \
+                                      loc=1.0, scale = varparam['AI_AUTORATE'],
+                                      size=1)
+              lvdat[1].data['AAUT_TOT'][ilev] *=m
+
+    ### drdat ###
+    if do_dr:
+      if not 'DR' in datacache['ERRORDAT'][Z][z1].keys():
+
+        if drdat != False:
+          minval = -2
+          if varparam['DR_SATELINT'] > 0.5:
+            minval = -1/varparam['DR_SATELINT']
+
+          datacache['ERRORDAT'][Z][z1]['DR'] =  stats.truncnorm.rvs(minval, \
+                                             2, \
+                                             loc=1.0, scale = varparam['DR_SATELINT'],
+                                             size=len(drdat[1].data))
+          drdat[1].data['SATELINT']*=datacache['ERRORDAT'][Z][z1]['DR']
+
+    ### irdat ###
+    if do_ir:
+      if not 'IR' in datacache['ERRORDAT'][Z][z1].keys():
+            #varparam['IR_CI']
+          #varparam['IR_RR']
+          #varparam['IR_DR']
+          #varparam['IR_XI']
+          #varparam['IR_XR']
+        datacache['ERRORDAT'][Z][z1]['IR']=numpy.zeros(len(irdat[1].data))
+        i = (irdat[1].data['TR_TYPE']=='XI')
+        datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
+                                           min([-1/varparam['IR_XI'], -2]),\
                                            2, \
-                                           loc=1.0, scale = varparam['DR_SATELINT'],
-                                           size=len(drdat[1].data))
-        drdat[1].data['SATELINT']*=datacache['ERRORDAT'][Z][z1]['DR']
+                                           loc=1.0, scale = varparam['IR_XI'],
+                                           size=sum(i))
+        i = (irdat[1].data['TR_TYPE']=='XR')
+        datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
+                                           min([-1/varparam['IR_XR'], -2]),\
+                                           2*varparam['IR_XR'], \
+                                           loc=1.0, scale = varparam['IR_XR'],
+                                           size=sum(i))
 
-  ### irdat ###
-  if do_ir:
-    if not 'IR' in datacache['ERRORDAT'][Z][z1].keys():
-          #varparam['IR_CI']
-        #varparam['IR_RR']
-        #varparam['IR_DR']
-        #varparam['IR_XI']
-        #varparam['IR_XR']
-      datacache['ERRORDAT'][Z][z1]['IR']=numpy.zeros(len(irdat[1].data))
-      i = (irdat[1].data['TR_TYPE']=='XI')
-      datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
-                                         min([-1/varparam['IR_XI'], -2]),\
-                                         2, \
-                                         loc=1.0, scale = varparam['IR_XI'],
-                                         size=sum(i))
-      i = (irdat[1].data['TR_TYPE']=='XR')
-      datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
-                                         min([-1/varparam['IR_XR'], -2]),\
-                                         2*varparam['IR_XR'], \
-                                         loc=1.0, scale = varparam['IR_XR'],
-                                         size=sum(i))
+        i = (irdat[1].data['TR_TYPE']=='CI')
+        datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
+                                           min([-1/varparam['IR_CI'], -2]),\
+                                           2*varparam['IR_CI'], \
+                                           loc=1.0, scale = varparam['IR_CI'],
+                                           size=sum(i))
 
-      i = (irdat[1].data['TR_TYPE']=='CI')
-      datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
-                                         min([-1/varparam['IR_CI'], -2]),\
-                                         2*varparam['IR_CI'], \
-                                         loc=1.0, scale = varparam['IR_CI'],
-                                         size=sum(i))
-
-      i = (irdat[1].data['TR_TYPE']=='DR')
-      datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
-                                         min([-1/varparam['IR_DR'], -2]),\
-                                         2*varparam['IR_DR'], \
-                                         loc=1.0, scale = varparam['IR_DR'],
-                                         size=sum(i))
-      i = (irdat[1].data['TR_TYPE']=='RR')
-      datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
-                                         min([-1/varparam['IR_RR'], -2]),\
-                                         2*varparam['IR_RR'], \
-                                         loc=1.0, scale = varparam['IR_RR'],
-                                         size=sum(i))
+        i = (irdat[1].data['TR_TYPE']=='DR')
+        datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
+                                           min([-1/varparam['IR_DR'], -2]),\
+                                           2*varparam['IR_DR'], \
+                                           loc=1.0, scale = varparam['IR_DR'],
+                                           size=sum(i))
+        i = (irdat[1].data['TR_TYPE']=='RR')
+        datacache['ERRORDAT'][Z][z1]['IR'][i] =stats.truncnorm.rvs(\
+                                           min([-1/varparam['IR_RR'], -2]),\
+                                           2*varparam['IR_RR'], \
+                                           loc=1.0, scale = varparam['IR_RR'],
+                                           size=sum(i))
 
 def var_calc_maxwell_rates(Z, z1, te, datacache=False, settings=False):
   """
@@ -6181,20 +6183,9 @@ def var_calc_recomb_popn(levpop, Z, z1, z1_drv, it, T, dens, drlevrates, rrlevra
   if not 'IRRATES' in datacache.keys():
     datacache['IRRATES']={}
   if not Z in datacache['IRRATES'].keys():
-    datacache['IRRATES']={}
+    datacache['IRRATES'][Z]={}
   if not z1 in datacache['IRRATES'][Z].keys():
-    datacache['IRRATES'][Z][z1]={}
-
-
-#    if not 'ERRORDAT' in datacache.keys():
-#      datacache['ERRORDAT']={}
-
-#    if not Z in datacache['ERRORDAT'].keys():
-#      datacache['ERRORDAT'][Z]={}
-
-#    if not z1 in datacache['ERRORDAT'][Z].keys():
-
-#      var_alter_rates(Z,z1,datacache=datacache,settings=settings,do_ir=True)
+    var_alter_rates(Z,z1,datacache=datacache,settings=settings,do_ir=True)
 
 
     datacache['IRRATES'][Z][z1] =numpy.zeros([len(irdat[1].data), len(T)])
