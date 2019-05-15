@@ -1846,7 +1846,7 @@ def calc_maxwell_rates(coll_type, min_T, max_T, Tarr, \
       # this is for values outside the range
       for iit in it:
         if T[iit] in Tarr[:N_interp]:
-          rate_coeff[iit]=om[Tarr[:N_interp]==T[iit]]
+          rate_coeff[iit]=om[:N_interp][Tarr[:N_interp]==T[iit]]
         else:
           rate_coeff[iit]=numpy.exp(tmpfn(numpy.log(T[iit])))-1e-30
 
