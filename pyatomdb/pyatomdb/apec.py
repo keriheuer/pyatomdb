@@ -1540,8 +1540,12 @@ def create_lhdu_nei(linedata):
 
 def create_chdu_cie(cocodata):
 
-  ncont = max(cocodata['N_Cont'])
-  npseudo = max(cocodata['N_Pseudo'])
+  ncontA = max(cocodata['N_Cont'])
+  npseudoA = max(cocodata['N_Pseudo'])
+  ncont = cocodata['Continuum'].shape[1]
+  npseudo = cocodata['Pseudo'].shape[1]
+  print("Ncont:", ncontA, ncont)
+  print("Npseudo:", npseudoA, npseudo)
 
   cols = []
   cols.append(pyfits.Column(name='Z', format='1J', array=cocodata['Z']))
